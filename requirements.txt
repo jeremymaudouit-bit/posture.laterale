@@ -4,4 +4,4 @@ opencv-python-headless==4.10.0.84
 Pillow==10.4.0
 mediapipe==0.10.14
 fpdf2==2.7.9
-streamlit-image-coordinates==0.1.9
+streamlit-image-coordinates==0.4.0
