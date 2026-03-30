@@ -394,12 +394,8 @@ with st.sidebar:
     st.divider()
     st.subheader("📐 Mode d'analyse")
     mode_analyse = st.radio("Plan d'analyse", ["Frontal", "Latéral"], index=1)
-    cote_lateral = st.selectbox(
-        "Côté observé (si plan latéral)",
-        ["Droite", "Gauche"],
-        index=0,
-        disabled=(mode_analyse != "Latéral")
-    )
+    if mode_analyse == "Latéral":
+        st.caption("En mode latéral, l'application analyse automatiquement le côté le plus visible.")
 
     st.divider()
     source = st.radio("Source de l'image", ["📷 Caméra", "📁 Téléverser une photo"])
@@ -408,15 +404,18 @@ with st.sidebar:
     st.subheader("🖱️ Correction avant analyse")
     enable_click_edit = st.checkbox("Activer correction par clic", value=True)
 
-    editable_points = [
-        "Hanche G", "Hanche D",
-        "Genou G", "Genou D",
-        "Cheville G", "Cheville D",
-        "Talon G", "Talon D",
-        "Epaule G", "Epaule D",
-        "Oreille G", "Oreille D",
-        "Nez"
-    ]
+    if mode_analyse == "Latéral":
+        editable_points = ["Epaule", "Hanche", "Genou", "Cheville", "Talon", "Oreille", "Nez"]
+    else:
+        editable_points = [
+            "Hanche G", "Hanche D",
+            "Genou G", "Genou D",
+            "Cheville G", "Cheville D",
+            "Talon G", "Talon D",
+            "Epaule G", "Epaule D",
+            "Oreille G", "Oreille D",
+            "Nez"
+        ]
     point_to_edit = st.selectbox("Point à corriger", editable_points, disabled=not enable_click_edit)
 
     c1, c2 = st.columns(2)
@@ -543,9 +542,35 @@ with st.spinner("Détection (MediaPipe) + calculs..."):
         "Nez": NO,
     }
 
+    cote_visible = choose_visible_side(lm)
+    if mode_analyse == "Latéral":
+        if cote_visible == "Droite":
+            alias_points = {
+                "Epaule": "Epaule D",
+                "Hanche": "Hanche D",
+                "Genou": "Genou D",
+                "Cheville": "Cheville D",
+                "Talon": "Talon D",
+                "Oreille": "Oreille D",
+                "Nez": "Nez",
+            }
+        else:
+            alias_points = {
+                "Epaule": "Epaule G",
+                "Hanche": "Hanche G",
+                "Genou": "Genou G",
+                "Cheville": "Cheville G",
+                "Talon": "Talon G",
+                "Oreille": "Oreille G",
+                "Nez": "Nez",
+            }
+    else:
+        alias_points = {}
+
     for k, (x, y) in st.session_state["override_one"].items():
-        if k in POINTS:
-            POINTS[k] = np.array([x, y], dtype=np.float32)
+        key = alias_points.get(k, k)
+        if key in POINTS:
+            POINTS[key] = np.array([x, y], dtype=np.float32)
 
     LS = POINTS["Epaule G"]; RS = POINTS["Epaule D"]
     LH = POINTS["Hanche G"]; RH = POINTS["Hanche D"]
@@ -561,8 +586,9 @@ with st.spinner("Détection (MediaPipe) + calculs..."):
         cv2.circle(ann_bgr, tuple(p.astype(int)), 7, (0, 255, 0), -1)
 
     for name in list(st.session_state["override_one"].keys()):
-        if name in POINTS:
-            p = POINTS[name]
+        key = alias_points.get(name, name)
+        if key in POINTS:
+            p = POINTS[key]
             cv2.circle(ann_bgr, tuple(p.astype(int)), 14, (255, 0, 255), 3)
             cv2.putText(ann_bgr, name, (int(p[0]) + 10, int(p[1]) - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
@@ -609,7 +635,7 @@ with st.spinner("Détection (MediaPipe) + calculs..."):
             "Angle Cheville D (tibia-arrière-pied)": f"{ankle_r:.1f}°",
         }
     else:
-        if cote_lateral == "Droite":
+        if cote_visible == "Droite":
             epaule = RS
             hanche = RH
             genou = RK
@@ -808,7 +834,7 @@ with col_result:
     st.image(
         Image.fromarray(annotated, mode="RGB"),
         caption="Points verts = utilisés | Violet = corrigé",
-        use_container_width=True,
+        use_column_width=True,
     )
 
     st.markdown("---")
